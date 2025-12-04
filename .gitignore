@@ -1,0 +1,55 @@
+# Build artifacts
+build/
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+CTestTestfile.cmake
+*.cmake
+
+# RandomX build artifacts
+.deps/
+.dirstamp
+*.Po
+*.Plo
+
+# Test executables
+test_comparison
+test_hash_verification
+test_mining_simple
+test_simple_mine
+verify_block_1583
+
+# Documentation that's generated during development
+# Keep the important docs
+!README.md
+!IMPLEMENTATION_NOTES.md
+
+# Temporary files
+*.log
+*.tmp
+*.swp
+*.swo
+*~
+.DS_Store
+
+# IDE and editor files
+.vscode/
+.idea/
+*.sublime-*
+
+# Test data
+/tmp/
+*.json
+
+# Build scripts (keep in repo but ignore if user modifies)
+# build.sh
+# debug_test.sh
+# test_debug.sh
