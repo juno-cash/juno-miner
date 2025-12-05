@@ -8,6 +8,7 @@ A high-performance standalone miner for Juno Cash cryptocurrency using the Rando
 - **Two mining modes**: Fast mode (memory hungry) and Light mode (low memory)
 - **NUMA-aware** thread allocation for multi-socket systems
 - **RPC integration** with Juno Cash node
+- **ZMQ support** for instant block notifications (optional)
 - **Real-time statistics** and hashrate monitoring
 - **Interactive controls** for adjusting threads during mining
 
@@ -35,13 +36,13 @@ A high-performance standalone miner for Juno Cash cryptocurrency using the Rando
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y build-essential cmake libcurl4-openssl-dev libssl-dev libjsoncpp-dev
+sudo apt-get install -y build-essential cmake libcurl4-openssl-dev libssl-dev libjsoncpp-dev libzmq3-dev
 ```
 
 ### Install Dependencies (CentOS/RHEL)
 
 ```bash
-sudo yum install -y gcc-c++ cmake libcurl-devel openssl-devel jsoncpp-devel
+sudo yum install -y gcc-c++ cmake libcurl-devel openssl-devel jsoncpp-devel zeromq-devel
 ```
 
 ## Building
@@ -99,7 +100,8 @@ Available options:
 - `--threads N` - Number of mining threads (default: auto-detect)
 - `--fast-mode` - Use full RandomX dataset (~2.5GB) for 2x hashrate
 - `--update-interval N` - Stats update interval in seconds (default: 5)
-- `--block-check N` - Block check interval in seconds (default: 5)
+- `--block-check N` - Block check interval in seconds (default: 2)
+- `--zmq-url URL` - ZMQ endpoint for instant block notifications (e.g., tcp://127.0.0.1:28332)
 - `--no-balance` - Skip wallet balance checks
 - `--debug` - Enable debug logging
 - `--log-file FILE` - Write debug logs to file (default: juno-miner.log)
@@ -120,6 +122,28 @@ While mining, press:
 3. **Mining**: Multiple threads hash block headers with random nonces
 4. **Epoch Handling**: Automatically reinitializes RandomX when epoch changes (every 2048 blocks)
 5. **Block Submission**: When a valid solution is found, submits the block via RPC
+
+## ZMQ Block Notifications (Recommended)
+
+For instant detection of new blocks on the network, enable ZMQ notifications. Without ZMQ, the miner polls the node every 2 seconds. With ZMQ, new blocks are detected in under 100ms, reducing wasted hashpower on stale blocks.
+
+### Node Configuration
+
+Add to your `~/.junocash/junocashd.conf`:
+
+```
+zmqpubhashblock=tcp://127.0.0.1:28332
+```
+
+Restart the node after making this change.
+
+### Miner Usage
+
+```bash
+./build/juno-miner --rpc-user yourusername --rpc-password yourpassword --zmq-url tcp://127.0.0.1:28332
+```
+
+The miner will display "(ZMQ)" in the status message when a new block is detected via ZMQ notification.
 
 ## Performance Tuning
 
@@ -169,11 +193,13 @@ On multi-socket systems with NUMA, the miner automatically:
 If you encounter missing dependencies:
 ```bash
 # Ubuntu/Debian
-sudo apt-get install -y build-essential cmake libcurl4-openssl-dev libssl-dev libjsoncpp-dev
+sudo apt-get install -y build-essential cmake libcurl4-openssl-dev libssl-dev libjsoncpp-dev libzmq3-dev
 
 # CentOS/RHEL
-sudo yum install -y gcc-c++ cmake libcurl-devel openssl-devel jsoncpp-devel
+sudo yum install -y gcc-c++ cmake libcurl-devel openssl-devel jsoncpp-devel zeromq-devel
 ```
+
+Note: libzmq is optional. If not installed, the miner will build without ZMQ support and use polling only.
 
 ## Security Notes
 

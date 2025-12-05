@@ -14,7 +14,8 @@ void print_usage(const char* program_name) {
     std::cout << "  --rpc-password PASS    RPC password" << std::endl;
     std::cout << "  --threads N            Number of mining threads (default: auto-detect)" << std::endl;
     std::cout << "  --update-interval N    Stats update interval in seconds (default: 5)" << std::endl;
-    std::cout << "  --block-check N        Block check interval in seconds (default: 5)" << std::endl;
+    std::cout << "  --block-check N        Block check interval in seconds (default: 2)" << std::endl;
+    std::cout << "  --zmq-url URL          ZMQ endpoint for instant block notifications (e.g., tcp://127.0.0.1:28332)" << std::endl;
     std::cout << "  --fast-mode            Use full RandomX dataset (~2GB shared) for 2x hashrate" << std::endl;
     std::cout << "  --no-balance           Skip wallet balance checks (don't query or display balance)" << std::endl;
     std::cout << "  --debug                Enable debug logging" << std::endl;
@@ -89,6 +90,12 @@ bool parse_config(int argc, char* argv[], MinerConfig& config) {
                 std::cerr << "Error: invalid block check interval" << std::endl;
                 return false;
             }
+        } else if (arg == "--zmq-url") {
+            if (i + 1 >= argc) {
+                std::cerr << "Error: --zmq-url requires an argument" << std::endl;
+                return false;
+            }
+            config.zmq_url = argv[++i];
         } else if (arg == "--fast-mode") {
             config.fast_mode = true;
         } else if (arg == "--no-balance") {

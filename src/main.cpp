@@ -11,6 +11,9 @@
 #include <termios.h>
 #include <unistd.h>
 #include <fcntl.h>
+#ifdef HAVE_ZMQ
+#include <zmq.h>
+#endif
 #include "config.h"
 #include "utils.h"
 #include "rpc_client.h"
@@ -19,6 +22,7 @@
 
 std::atomic<bool> running(true);
 std::atomic<bool> refresh_ui(false);
+std::atomic<bool> zmq_block_notification(false);
 Miner* global_miner = nullptr;
 
 struct termios orig_termios;
@@ -417,6 +421,68 @@ void print_system_info(const utils::SystemResources& resources) {
     std::cout << std::endl;
 }
 
+#ifdef HAVE_ZMQ
+// ZMQ subscriber thread for instant block notifications
+void zmq_subscriber_thread(const std::string& zmq_url) {
+    void* context = zmq_ctx_new();
+    if (!context) {
+        LOG_ERROR("Failed to create ZMQ context");
+        return;
+    }
+
+    void* subscriber = zmq_socket(context, ZMQ_SUB);
+    if (!subscriber) {
+        LOG_ERROR("Failed to create ZMQ subscriber socket");
+        zmq_ctx_destroy(context);
+        return;
+    }
+
+    // Set receive timeout to 1 second for clean shutdown
+    int timeout_ms = 1000;
+    zmq_setsockopt(subscriber, ZMQ_RCVTIMEO, &timeout_ms, sizeof(timeout_ms));
+
+    // Subscribe to hashblock topic
+    zmq_setsockopt(subscriber, ZMQ_SUBSCRIBE, "hashblock", 9);
+
+    if (zmq_connect(subscriber, zmq_url.c_str()) != 0) {
+        LOG_ERROR_STREAM("Failed to connect to ZMQ endpoint: " << zmq_url);
+        zmq_close(subscriber);
+        zmq_ctx_destroy(context);
+        return;
+    }
+
+    LOG_INFO_STREAM("ZMQ subscriber connected to " << zmq_url);
+
+    char topic[64];
+    char body[64];
+
+    while (running.load()) {
+        // Receive topic (e.g., "hashblock")
+        int topic_len = zmq_recv(subscriber, topic, sizeof(topic) - 1, 0);
+        if (topic_len < 0) {
+            // Timeout or error - check if we should continue
+            continue;
+        }
+        topic[topic_len] = '\0';
+
+        // Receive body (block hash)
+        int body_len = zmq_recv(subscriber, body, sizeof(body) - 1, 0);
+        if (body_len < 0) {
+            continue;
+        }
+        body[body_len] = '\0';
+
+        // Signal that a new block was found
+        zmq_block_notification.store(true);
+        LOG_DEBUG("ZMQ: New block notification received");
+    }
+
+    zmq_close(subscriber);
+    zmq_ctx_destroy(context);
+    LOG_INFO("ZMQ subscriber thread exiting");
+}
+#endif
+
 int main(int argc, char* argv[]) {
     // Parse configuration
     MinerConfig config;
@@ -556,6 +622,16 @@ int main(int argc, char* argv[]) {
     // Add initial update message
     add_update_message("Mining started");
 
+    // Start ZMQ subscriber thread if configured
+#ifdef HAVE_ZMQ
+    std::thread zmq_thread;
+    if (!config.zmq_url.empty()) {
+        LOG_INFO_STREAM("Starting ZMQ subscriber for instant block notifications: " << config.zmq_url);
+        add_update_message("ZMQ block notifications enabled");
+        zmq_thread = std::thread(zmq_subscriber_thread, config.zmq_url);
+    }
+#endif
+
     // Track connection state for reconnection messages
     bool was_disconnected = false;
 
@@ -692,7 +768,14 @@ int main(int argc, char* argv[]) {
             auto uptime = std::chrono::duration_cast<std::chrono::seconds>(now - start_time).count();
 
             // Check for new blocks on the network
-            if (block_check_elapsed >= config.block_check_interval_seconds) {
+            // ZMQ notification triggers immediate check, otherwise use polling interval
+            bool zmq_triggered = zmq_block_notification.exchange(false);
+            bool poll_triggered = block_check_elapsed >= config.block_check_interval_seconds;
+
+            if (zmq_triggered || poll_triggered) {
+                if (zmq_triggered) {
+                    LOG_DEBUG("Block check triggered by ZMQ notification");
+                }
                 Json::Value blockchain_info;
                 if (rpc.get_blockchain_info(blockchain_info)) {
                     consecutive_rpc_failures = 0; // Reset on success
@@ -701,9 +784,12 @@ int main(int argc, char* argv[]) {
                         std::ostringstream msg;
                         msg << "New block on network! Height " << current_block_height
                             << " -> " << network_height;
+                        if (zmq_triggered) {
+                            msg << " (ZMQ)";
+                        }
                         add_update_message(msg.str());
                         LOG_INFO_STREAM("New block detected on network: height " << current_block_height
-                                       << " -> " << network_height);
+                                       << " -> " << network_height << (zmq_triggered ? " (via ZMQ)" : " (via polling)"));
 
                         block_changed = true;
                         miner.stop();
@@ -865,6 +951,14 @@ int main(int argc, char* argv[]) {
 
     show_cursor();
     restore_terminal();
+
+    // Wait for ZMQ thread to finish
+#ifdef HAVE_ZMQ
+    if (zmq_thread.joinable()) {
+        zmq_thread.join();
+    }
+#endif
+
     std::cout << std::endl;
     std::cout << "========================================" << std::endl;
     std::cout << "Mining Summary" << std::endl;

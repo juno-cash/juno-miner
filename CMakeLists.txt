@@ -11,6 +11,15 @@ find_package(OpenSSL REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(JSONCPP REQUIRED jsoncpp)
 
+# Find ZeroMQ library (optional - for instant block notifications)
+pkg_check_modules(ZMQ libzmq)
+if(ZMQ_FOUND)
+    message(STATUS "Found libzmq: ${ZMQ_LIBRARIES}")
+    add_definitions(-DHAVE_ZMQ)
+else()
+    message(STATUS "libzmq not found - ZMQ block notifications disabled (install libzmq3-dev)")
+endif()
+
 # Find NUMA library (optional but recommended for multi-socket systems)
 find_library(NUMA_LIBRARY numa)
 if(NUMA_LIBRARY)
@@ -26,6 +35,7 @@ include_directories(
     ${CURL_INCLUDE_DIRS}
     ${OPENSSL_INCLUDE_DIR}
     ${JSONCPP_INCLUDE_DIRS}
+    ${ZMQ_INCLUDE_DIRS}
 )
 
 # Copy RandomX library from zcash project
@@ -127,6 +137,7 @@ target_link_libraries(juno-miner
     ${JSONCPP_LIBRARIES}
     dl
     $<$<BOOL:${NUMA_LIBRARY}>:${NUMA_LIBRARY}>
+    $<$<BOOL:${ZMQ_FOUND}>:${ZMQ_LIBRARIES}>
 )
 
 target_link_libraries(test_hash_verification

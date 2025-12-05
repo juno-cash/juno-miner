@@ -30,6 +30,9 @@ struct MinerConfig {
     // Skip wallet balance checking
     bool no_balance;
 
+    // ZMQ for instant block notifications
+    std::string zmq_url;  // e.g., "tcp://127.0.0.1:28332"
+
     MinerConfig()
         : rpc_url("http://127.0.0.1:8232")
         , rpc_user("")
@@ -37,12 +40,13 @@ struct MinerConfig {
         , num_threads(0)
         , auto_threads(true)
         , update_interval_seconds(5)
-        , block_check_interval_seconds(5)
+        , block_check_interval_seconds(2)
         , debug_mode(false)
         , log_file("")
         , log_to_console(false)
         , fast_mode(false)
-        , no_balance(false) {}
+        , no_balance(false)
+        , zmq_url("") {}
 };
 
 bool parse_config(int argc, char* argv[], MinerConfig& config);
