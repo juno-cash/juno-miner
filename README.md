@@ -127,9 +127,9 @@ While mining, press:
 
 For instant detection of new blocks on the network, enable ZMQ notifications. Without ZMQ, the miner polls the node every 2 seconds. With ZMQ, new blocks are detected in under 100ms, reducing wasted hashpower on stale blocks.
 
-### Node Configuration
+### Option 1: Direct Connection to Node
 
-Add to your `~/.junocash/junocashd.conf`:
+Configure ZMQ on your Juno Cash node. Add to `~/.junocash/junocashd.conf`:
 
 ```
 zmqpubhashblock=tcp://127.0.0.1:28332
@@ -137,11 +137,31 @@ zmqpubhashblock=tcp://127.0.0.1:28332
 
 Restart the node after making this change.
 
-### Miner Usage
+Then run the miner with:
 
 ```bash
 ./build/juno-miner --rpc-user yourusername --rpc-password yourpassword --zmq-url tcp://127.0.0.1:28332
 ```
+
+### Option 2: Via juno-proxy (Recommended for Multiple Miners)
+
+If you're running multiple miners or want to isolate your node credentials, use juno-proxy as an intermediary. The proxy forwards ZMQ notifications to all connected miners.
+
+1. Configure your node's ZMQ as shown above
+2. Enable ZMQ proxy in juno-proxy's `config.toml`:
+   ```toml
+   [zmq]
+   enabled = true
+   upstream_url = "tcp://127.0.0.1:28332"
+   listen = "tcp://0.0.0.0:28333"
+   topic = "hashblock"
+   ```
+3. Connect miners to the proxy:
+   ```bash
+   ./build/juno-miner --rpc-url http://proxy-host:8233 --zmq-url tcp://proxy-host:28333
+   ```
+
+This setup allows multiple miners to receive instant block notifications without each connecting directly to your node.
 
 The miner will display "(ZMQ)" in the status message when a new block is detected via ZMQ notification.
 
