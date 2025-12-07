@@ -45,13 +45,66 @@ sudo apt-get install -y build-essential cmake libcurl4-openssl-dev libssl-dev li
 sudo yum install -y gcc-c++ cmake libcurl-devel openssl-devel jsoncpp-devel zeromq-devel
 ```
 
+### Install Dependencies (Windows)
+
+Using [vcpkg](https://github.com/microsoft/vcpkg):
+
+```powershell
+# Install vcpkg if not already installed
+git clone https://github.com/microsoft/vcpkg.git
+cd vcpkg
+.\bootstrap-vcpkg.bat
+
+# Install dependencies
+.\vcpkg install curl:x64-windows openssl:x64-windows jsoncpp:x64-windows zeromq:x64-windows
+```
+
+You'll also need:
+- [Visual Studio 2019 or later](https://visualstudio.microsoft.com/) with C++ build tools
+- [CMake](https://cmake.org/download/) 3.10 or higher
+
 ## Building
+
+### Linux/macOS
 
 ```bash
 ./build.sh
 ```
 
 This will create the `juno-miner` binary in the `build/` directory.
+
+### Windows
+
+Using PowerShell:
+
+```powershell
+# Set vcpkg toolchain path (adjust path as needed)
+$env:VCPKG_ROOT = "C:\vcpkg"
+
+# Create build directory
+mkdir build
+cd build
+
+# Configure with CMake
+cmake .. -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake"
+
+# Build
+cmake --build . --config Release
+```
+
+The `juno-miner.exe` binary will be in `build\Release\`.
+
+Alternatively, using MSYS2 MinGW64:
+
+```bash
+# Install dependencies in MSYS2
+pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-curl mingw-w64-x86_64-openssl mingw-w64-x86_64-jsoncpp mingw-w64-x86_64-zeromq
+
+# Build
+mkdir build && cd build
+cmake .. -G "MinGW Makefiles"
+mingw32-make
+```
 
 ## Configuration
 
